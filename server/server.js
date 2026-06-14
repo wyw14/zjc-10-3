@@ -53,7 +53,10 @@ function selectQuestionForToday(data) {
       .map(a => a.questionId);
   }
 
-  let available = bank.filter(q => !usedIds.includes(q.id));
+  let available = bank.filter(q => q.active !== false && !usedIds.includes(q.id));
+  if (available.length === 0) {
+    available = bank.filter(q => q.active !== false);
+  }
   if (available.length === 0) {
     available = bank;
   }
@@ -61,6 +64,12 @@ function selectQuestionForToday(data) {
   const seed = todayStart;
   const index = Math.abs(seed) % available.length;
   const selected = available[index];
+
+  const questionInBank = data.questionBank.find(q => q.id === selected.id);
+  if (questionInBank) {
+    questionInBank.lastUsedDate = todayStr;
+    questionInBank.updatedAt = new Date().toISOString();
+  }
 
   data.currentQuestion = {
     questionId: selected.id,
@@ -118,7 +127,7 @@ app.get('/api/today', (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: '服务器错�? });
+    res.status(500).json({ success: false, message: '服务器错误' });
   }
 });
 
@@ -151,7 +160,7 @@ app.post('/api/answer', (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: '服务器错�? });
+    res.status(500).json({ success: false, message: '服务器错误' });
   }
 });
 
@@ -216,26 +225,108 @@ app.get('/api/history', (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: '服务器错�? });
+    res.status(500).json({ success: false, message: '服务器错误' });
   }
 });
 
 app.get('/api/question-bank', (req, res) => {
   try {
     const data = readData();
+    const questions = data.questionBank.map(q => ({
+      id: q.id,
+      question: q.question,
+      active: q.active !== false,
+      lastUsedDate: q.lastUsedDate || null,
+      createdAt: q.createdAt || null,
+      updatedAt: q.updatedAt || null
+    }));
     res.json({
       success: true,
-      data: data.questionBank
+      data: questions
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: '服务器错�? });
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+});
+
+app.post('/api/question-bank', (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+      return res.status(400).json({ success: false, message: '题目内容不能为空' });
+    }
+    const data = readData();
+    const maxId = data.questionBank.reduce((max, q) => Math.max(max, q.id), 0);
+    const newQuestion = {
+      id: maxId + 1,
+      question: question.trim(),
+      active: true,
+      lastUsedDate: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    data.questionBank.push(newQuestion);
+    writeData(data);
+    res.json({
+      success: true,
+      data: newQuestion
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+});
+
+app.put('/api/question-bank/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { question } = req.body;
+    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+      return res.status(400).json({ success: false, message: '题目内容不能为空' });
+    }
+    const data = readData();
+    const q = data.questionBank.find(item => item.id === id);
+    if (!q) {
+      return res.status(404).json({ success: false, message: '题目不存在' });
+    }
+    q.question = question.trim();
+    q.updatedAt = new Date().toISOString();
+    writeData(data);
+    res.json({
+      success: true,
+      data: q
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+});
+
+app.patch('/api/question-bank/:id/toggle', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const data = readData();
+    const q = data.questionBank.find(item => item.id === id);
+    if (!q) {
+      return res.status(404).json({ success: false, message: '题目不存在' });
+    }
+    q.active = q.active === false ? true : false;
+    q.updatedAt = new Date().toISOString();
+    writeData(data);
+    res.json({
+      success: true,
+      data: q
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: '服务器错误' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`每日问答后端服务已启�? http://localhost:${PORT}`);
+  console.log(`每日问答后端服务已启动 http://localhost:${PORT}`);
   const data = readData();
   ensureTodayQuestion(data);
-  console.log(`今日问题已准备就�? ${data.currentQuestion.question}`);
+  console.log(`今日问题已准备就绪 ${data.currentQuestion.question}`);
 });

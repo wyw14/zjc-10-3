@@ -20,9 +20,16 @@
       >
         历史记录
       </button>
+      <button
+        class="tab-btn"
+        :class="{ active: currentTab === 'workshop' }"
+        @click="currentTab = 'workshop'"
+      >
+        🛠️ 题目工坊
+      </button>
     </div>
 
-    <div v-if="loading || !todayData" class="loading">加载中...</div>
+    <div v-if="loading || (currentTab === 'today' && !todayData)" class="loading">加载中...</div>
 
     <TodayView
       v-else-if="currentTab === 'today'"
@@ -39,6 +46,11 @@
       @next-month="nextMonth"
     />
 
+    <QuestionWorkshop
+      v-else-if="currentTab === 'workshop'"
+      @toast="showToast"
+    />
+
     <div v-if="toast.show" class="toast" :class="{ error: toast.isError }">
       {{ toast.message }}
     </div>
@@ -46,9 +58,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import TodayView from './components/TodayView.vue'
 import HistoryView from './components/HistoryView.vue'
+import QuestionWorkshop from './components/QuestionWorkshop.vue'
 
 const currentTab = ref('today')
 const loading = ref(false)
